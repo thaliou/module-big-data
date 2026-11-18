@@ -1,0 +1,28 @@
+flowchart TB
+  subgraph NET["Réseau Docker Compose (DNS interne par nom de service)"]
+    direction TB
+    subgraph HDFS["HDFS — stockage (réplication = 2, bloc = 1 Mio)"]
+      direction LR
+      NN["namenode<br/>NameNode<br/>apache/hadoop:3.4.1"]
+      DN1["datanode-01<br/>volume datanode01_data"]
+      DN2["datanode-02<br/>volume datanode02_data"]
+      DN3["datanode-03<br/>volume datanode03_data"]
+      DN1 --> NN
+      DN2 --> NN
+      DN3 --> NN
+    end
+    subgraph YARN["YARN — calcul (2 Go / 2 vCores par nœud)"]
+      direction LR
+      RM["resourcemanager<br/>ResourceManager<br/>apache/hadoop:3.4.1"]
+      NM1["nodemanager-01<br/>hadoop-python:3.4.1"]
+      NM2["nodemanager-02<br/>hadoop-python:3.4.1"]
+      NM3["nodemanager-03<br/>hadoop-python:3.4.1"]
+      NM1 --> RM
+      NM2 --> RM
+      NM3 --> RM
+    end
+    INIT["init-permissions<br/>(exécution unique, root)"]
+  end
+  HOST(["Poste hôte : navigateur et terminal"])
+  HOST -- "localhost:9870" --> NN
+  HOST -- "localhost:8088" --> RM

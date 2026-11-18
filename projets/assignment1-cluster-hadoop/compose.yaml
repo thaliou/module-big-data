@@ -1,0 +1,163 @@
+# Cluster Hadoop 3.4.1 — Assignment 1
+# 1 NameNode, 3 DataNodes, 1 ResourceManager, 3 NodeManagers ; réplication HDFS = 2 (hdfs-site.xml)
+# Lancement : docker compose up -d --build
+
+services:
+
+  # ---------------- Initialisation (s'exécute une fois puis s'arrête) ----------------
+  # Docker crée les volumes neufs avec le propriétaire root, alors que les démons Hadoop
+  # tournent avec l'utilisateur "hadoop" : sans ce service, le DataNode échoue (EPERM sur chmod)
+  # et le NameNode ne peut pas écrire ses métadonnées. Seul ce service tourne en root.
+  init-permissions:
+    image: apache/hadoop:3.4.1
+    container_name: hadoop-init-permissions
+    user: root
+    command: ["bash", "-c", "chown -R hadoop /vol && echo 'Volumes attribués à hadoop'"]
+    volumes:
+      - namenode_data:/vol/namenode
+      - datanode01_data:/vol/datanode-01
+      - datanode02_data:/vol/datanode-02
+      - datanode03_data:/vol/datanode-03
+
+  # ---------------- HDFS : maître ----------------
+  namenode:
+    image: apache/hadoop:3.4.1
+    container_name: hadoop-namenode
+    hostname: namenode
+    command: ["hdfs", "namenode"]
+    depends_on:
+      init-permissions:
+        condition: service_completed_successfully
+    ports:
+      - "9870:9870"                     # interface web HDFS
+    environment:
+      # L'image formate HDFS seulement si ce dossier n'existe pas : 1er démarrage uniquement
+      ENSURE_NAMENODE_DIR: "/tmp/hadoop-root/dfs/name"
+    volumes:
+      # Volume monté sur le PARENT : "name" est créé par le formatage, à l'intérieur du volume
+      - namenode_data:/tmp/hadoop-root/dfs
+      - ./core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml:ro
+      - ./hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml:ro
+      - ./yarn-site.xml:/opt/hadoop/etc/hadoop/yarn-site.xml:ro
+      - ./mapred-site.xml:/opt/hadoop/etc/hadoop/mapred-site.xml:ro
+
+  # ---------------- HDFS : esclaves ----------------
+  # Un hostname et un volume DISTINCTS par DataNode :
+  #  - hostname -> nœud identifiable séparément dans le NameNode (9870 > Datanodes)
+  #  - volume   -> chaque DataNode a son propre stockage (verrou + identifiant datanodeUuid)
+  datanode-01:
+    image: apache/hadoop:3.4.1
+    container_name: hadoop-datanode-01
+    hostname: datanode-01
+    command: ["hdfs", "datanode"]
+    depends_on:
+      init-permissions:
+        condition: service_completed_successfully
+      namenode:
+        condition: service_started
+    restart: unless-stopped
+    volumes:
+      - datanode01_data:/tmp/hadoop-root/dfs/data
+      - ./core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml:ro
+      - ./hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml:ro
+
+  datanode-02:
+    image: apache/hadoop:3.4.1
+    container_name: hadoop-datanode-02
+    hostname: datanode-02
+    command: ["hdfs", "datanode"]
+    depends_on:
+      init-permissions:
+        condition: service_completed_successfully
+      namenode:
+        condition: service_started
+    restart: unless-stopped
+    volumes:
+      - datanode02_data:/tmp/hadoop-root/dfs/data
+      - ./core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml:ro
+      - ./hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml:ro
+
+  datanode-03:
+    image: apache/hadoop:3.4.1
+    container_name: hadoop-datanode-03
+    hostname: datanode-03
+    command: ["hdfs", "datanode"]
+    depends_on:
+      init-permissions:
+        condition: service_completed_successfully
+      namenode:
+        condition: service_started
+    restart: unless-stopped
+    volumes:
+      - datanode03_data:/tmp/hadoop-root/dfs/data
+      - ./core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml:ro
+      - ./hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml:ro
+
+  # ---------------- YARN : maître ----------------
+  resourcemanager:
+    image: apache/hadoop:3.4.1
+    container_name: hadoop-resourcemanager
+    hostname: resourcemanager
+    command: ["yarn", "resourcemanager"]
+    ports:
+      - "8088:8088"                     # interface web YARN
+    volumes:
+      - ./core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml:ro
+      - ./hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml:ro
+      - ./yarn-site.xml:/opt/hadoop/etc/hadoop/yarn-site.xml:ro
+      - ./mapred-site.xml:/opt/hadoop/etc/hadoop/mapred-site.xml:ro
+
+  # ---------------- YARN : esclaves ----------------
+  # Image hadoop-python:3.4.1 (Dockerfile) : Python 3 est requis là où s'exécutent
+  # les tâches Hadoop Streaming. "build: ." rend le cluster reconstructible en une commande.
+  nodemanager-01:
+    build: .
+    image: hadoop-python:3.4.1
+    container_name: hadoop-nodemanager-01
+    hostname: nodemanager-01
+    command: ["yarn", "nodemanager"]
+    depends_on:
+      - resourcemanager
+    restart: unless-stopped
+    volumes:
+      - ./core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml:ro
+      - ./hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml:ro
+      - ./yarn-site.xml:/opt/hadoop/etc/hadoop/yarn-site.xml:ro
+      - ./mapred-site.xml:/opt/hadoop/etc/hadoop/mapred-site.xml:ro
+
+  nodemanager-02:
+    build: .
+    image: hadoop-python:3.4.1
+    container_name: hadoop-nodemanager-02
+    hostname: nodemanager-02
+    command: ["yarn", "nodemanager"]
+    depends_on:
+      - resourcemanager
+    restart: unless-stopped
+    volumes:
+      - ./core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml:ro
+      - ./hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml:ro
+      - ./yarn-site.xml:/opt/hadoop/etc/hadoop/yarn-site.xml:ro
+      - ./mapred-site.xml:/opt/hadoop/etc/hadoop/mapred-site.xml:ro
+
+  nodemanager-03:
+    build: .
+    image: hadoop-python:3.4.1
+    container_name: hadoop-nodemanager-03
+    hostname: nodemanager-03
+    command: ["yarn", "nodemanager"]
+    depends_on:
+      - resourcemanager
+    restart: unless-stopped
+    volumes:
+      - ./core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml:ro
+      - ./hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml:ro
+      - ./yarn-site.xml:/opt/hadoop/etc/hadoop/yarn-site.xml:ro
+      - ./mapred-site.xml:/opt/hadoop/etc/hadoop/mapred-site.xml:ro
+
+# Volumes nommés : stockage HDFS persistant (survit à stop/start et down ; supprimé seulement par down -v)
+volumes:
+  namenode_data:
+  datanode01_data:
+  datanode02_data:
+  datanode03_data:

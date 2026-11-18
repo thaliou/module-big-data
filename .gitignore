@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+
+# Résultats et fichiers locaux
+output/
+part-*
+_SUCCESS
+*.log
+
+# Archives du kit d'origine
+*.zip
+*.tar.gz
+
+# Éditeurs / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Secrets éventuels
+.env

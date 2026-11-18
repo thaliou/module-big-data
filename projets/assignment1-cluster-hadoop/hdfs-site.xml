@@ -1,0 +1,24 @@
+
+<configuration>
+    <property>
+        <name>dfs.replication</name>
+        <value>2</value>
+    </property>
+
+    <property>
+        <name>dfs.namenode.name.dir</name>
+        <value>file:///tmp/hadoop-root/dfs/name</value>
+    </property>
+
+    <property>
+        <name>dfs.datanode.data.dir</name>
+        <value>file:///tmp/hadoop-root/dfs/data</value>
+    </property>
+    
+        <!-- Bloc réduit : le fichier est découpé en plusieurs blocs répartis sur les 3 DataNodes,
+         ce qui permet plusieurs tâches map en parallèle (128 Mo par défaut = 1 seul bloc) -->
+    <property>
+        <name>dfs.blocksize</name>
+        <value>1048576</value>
+    </property>
+</configuration>
